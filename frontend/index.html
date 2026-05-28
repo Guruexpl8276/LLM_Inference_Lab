@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Inference Lab</title>
+  <meta name="description" content="Real-time LLM inference benchmarking and research dashboard with live GPU monitoring, SJF scheduling, and persistent telemetry. Works on any NVIDIA GPU." />
+  <link rel="stylesheet" href="/static/style.css" />
+  <!-- Chart.js for benchmark visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+  <header class="header">
+    <a class="header-logo" href="/">
+      <div class="logo-icon">⚡</div>
+      <span>LLM Inference Lab</span>
+    </a>
+
+    <nav class="header-nav">
+      <button class="nav-btn active" onclick="showTab('chat')" id="nav-chat">Chat</button>
+      <button class="nav-btn" onclick="showTab('benchmark')" id="nav-benchmark">Benchmark</button>
+      <button class="nav-btn" onclick="showTab('compare')" id="nav-compare">Compare</button>
+      <button class="nav-btn" onclick="showTab('history')" id="nav-history">Research Log</button>
+      <button class="nav-btn" onclick="showTab('loadtest')" id="nav-loadtest">Stress Test</button>
+    </nav>
+
+    <div class="header-status">
+      <!-- Ollama status -->
+      <div class="status-pill" id="ollama-status-pill">
+        <div class="status-dot" id="ollama-dot"></div>
+        <span id="ollama-status-text">Connecting...</span>
+      </div>
+      <!-- GPU quick stat -->
+      <div class="status-pill">
+        <span style="color:#94a3b8; font-size:0.7rem;">VRAM</span>
+        <span id="header-vram" style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:#3b82f6;">—</span>
+      </div>
+      <div class="status-pill">
+        <span style="color:#94a3b8; font-size:0.7rem;">GPU</span>
+        <span id="header-gpu" style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:#22c55e;">—</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════ MAIN ════════════════════════════════ -->
+  <div class="main-content">
+
+    <!-- ────────── LEFT SIDEBAR ────────── -->
+    <aside class="sidebar">
+
+      <!-- Model selector -->
+      <div class="card">
+        <div class="card-title">⚙ Model</div>
+        <select class="model-select" id="model-select" onchange="onModelChange()">
+          <option value="llama3.2:3b">llama3.2:3b (Primary)</option>
+          <option value="phi3:mini">phi3:mini (Alt)</option>
+          <option value="tinyllama">tinyllama (Baseline)</option>
+        </select>
+        <div style="margin-top:10px; font-size:0.7rem; color:var(--text-muted);" id="model-info">
+          ~2.0 GB VRAM · Q4_K_M · 3B params
+        </div>
+      </div>
+
+      <!-- Generation settings -->
+      <div class="card">
+        <div class="card-title">🎛 Settings</div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label class="form-label">Max Tokens</label>
+          <input type="range" id="max-tokens" min="64" max="1024" value="512" step="64"
+                 oninput="document.getElementById('max-tokens-val').textContent=this.value"
+                 style="width:100%; accent-color: var(--accent);" />
+          <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-muted);margin-top:2px;">
+            <span>64</span><span id="max-tokens-val" style="color:var(--accent);">512</span><span>1024</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Temperature</label>
+          <input type="range" id="temperature" min="0" max="1" value="0.7" step="0.05"
+                 oninput="document.getElementById('temp-val').textContent=this.value"
+                 style="width:100%; accent-color: var(--purple);" />
+          <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-muted);margin-top:2px;">
+            <span>0 (precise)</span><span id="temp-val" style="color:var(--purple);">0.7</span><span>1 (creative)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Last inference metrics -->
+      <div class="card" id="inference-metrics-card">
+        <div class="card-title">📊 Last Inference</div>
+        <div class="stat-row">
+          <span class="stat-label">TTFT</span>
+          <span class="stat-value blue" id="stat-ttft">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">TPOT</span>
+          <span class="stat-value blue" id="stat-tpot">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Throughput</span>
+          <span class="stat-value green" id="stat-tps">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Tokens</span>
+          <span class="stat-value" id="stat-tokens">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Total Time</span>
+          <span class="stat-value" id="stat-time">—</span>
+        </div>
+      </div>
+
+      <!-- TPS mini chart -->
+      <div class="card">
+        <div class="card-title">📈 Throughput History</div>
+        <canvas id="tps-chart" height="80"></canvas>
+      </div>
+
+    </aside>
+
+    <!-- ────────── CENTER: TAB PANELS ────────── -->
+    <main class="chat-panel">
+
+      <!-- ── CHAT TAB ── -->
+      <div class="tab-content active" id="tab-chat">
+        <div class="messages" id="messages">
+          <div class="welcome" id="welcome-msg">
+            <div class="welcome-icon">🧠</div>
+            <h2>LLM Inference Lab</h2>
+            <p>Chat with local LLMs on your GPU. Every response is measured for TTFT, TPOT, and throughput in real time.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
+              <span class="badge badge-green">llama3.2:3b</span>
+              <span class="badge badge-blue">GPU Accelerated</span>
+              <span class="badge badge-purple">4GB VRAM Safe</span>
+            </div>
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <div class="input-row">
+            <textarea
+              class="chat-textarea"
+              id="chat-input"
+              placeholder="Ask anything... (Shift+Enter for newline, Enter to send)"
+              rows="1"
+              onkeydown="handleChatKey(event)"
+              oninput="autoResize(this)"
+            ></textarea>
+            <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send (Enter)">➤</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── BENCHMARK TAB ── -->
+      <div class="tab-content" id="tab-benchmark">
+        <div class="benchmark-panel">
+          <h2 style="font-size:1rem;color:var(--text-secondary);font-weight:600;">
+            🚀 Single Model Benchmark
+          </h2>
+          <div class="bench-controls">
+            <div class="form-group">
+              <label class="form-label">Model</label>
+              <select class="form-select" id="bench-model">
+                <option value="llama3.2:3b">llama3.2:3b</option>
+                <option value="phi3:mini">phi3:mini</option>
+                <option value="tinyllama">tinyllama</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Prompt Type</label>
+              <select class="form-select" id="bench-prompt">
+                <option value="short">Short (fast)</option>
+                <option value="medium" selected>Medium (balanced)</option>
+                <option value="long">Long (stress test)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Runs</label>
+              <select class="form-select" id="bench-runs" style="min-width:80px;">
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+                <option value="5">5</option>
+              </select>
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <label class="form-label">&nbsp;</label>
+              <button class="btn btn-primary" id="bench-start-btn" onclick="startBenchmark()">
+                ▶ Run Benchmark
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress log -->
+          <div class="bench-log" id="bench-log">
+            <span style="color:var(--text-muted);">Ready. Click "Run Benchmark" to start.</span>
+          </div>
+
+          <!-- Results -->
+          <div class="card" id="bench-results" style="display:none;">
+            <div class="card-title">📊 Results</div>
+            <table class="results-table" id="bench-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Value</th>
+                  <th>Rating</th>
+                </tr>
+              </thead>
+              <tbody id="bench-tbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Throughput chart -->
+          <div class="chart-container" id="bench-chart-wrap" style="display:none;">
+            <div class="chart-title">📈 Tokens/Second per Run</div>
+            <canvas id="bench-chart" height="120"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── COMPARE TAB ── -->
+      <div class="tab-content" id="tab-compare">
+        <div class="benchmark-panel">
+          <h2 style="font-size:1rem;color:var(--text-secondary);font-weight:600;">
+            ⚖ Multi-Model Comparison
+          </h2>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:12px;">
+            Benchmark all installed models side-by-side. Filtered to small/mid-size models that fit on most consumer GPUs.
+          </p>
+          <div class="bench-controls">
+            <div class="form-group">
+              <label class="form-label">Prompt Type</label>
+              <select class="form-select" id="compare-prompt">
+                <option value="short">Short</option>
+                <option value="medium" selected>Medium</option>
+                <option value="long">Long</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Runs/Model</label>
+              <select class="form-select" id="compare-runs" style="min-width:80px;">
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+              </select>
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <label class="form-label">&nbsp;</label>
+              <button class="btn btn-primary" id="compare-start-btn" onclick="startCompare()">
+                ⚖ Compare Models
+              </button>
+            </div>
+          </div>
+
+          <div class="bench-log" id="compare-log">
+            <span style="color:var(--text-muted);">Ready. Will auto-detect safe installed models.</span>
+          </div>
+
+          <div class="card" id="compare-results" style="display:none;">
+            <div class="card-title">🏆 Comparison Results</div>
+            <table class="results-table" id="compare-table">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Tok/s ↑</th>
+                  <th>TTFT ↓</th>
+                  <th>TPOT ↓</th>
+                  <th>Winner</th>
+                </tr>
+              </thead>
+              <tbody id="compare-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="chart-container" id="compare-chart-wrap" style="display:none;">
+            <div class="chart-title">📊 Model Comparison — Tokens/Second</div>
+            <canvas id="compare-chart" height="150"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── RESEARCH LOG TAB ── -->
+      <div class="tab-content" id="tab-history">
+        <div class="benchmark-panel">
+          <h2 style="font-size:1rem;color:var(--text-secondary);font-weight:600;">
+            📚 Research Log — Persistent Inference History
+          </h2>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:12px;">
+            Every <code>/chat</code>, <code>/generate</code>, and <code>/benchmark</code> run is persisted to
+            a local SQLite log (default <code>./inference_lab.db</code>). This view summarises the dataset.
+          </p>
+
+          <div class="bench-controls">
+            <div class="form-group">
+              <label class="form-label">Filter Model</label>
+              <select class="form-select" id="hist-model-filter">
+                <option value="">All models</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Recent Runs Limit</label>
+              <select class="form-select" id="hist-limit" style="min-width:90px;">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="500">500</option>
+              </select>
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <label class="form-label">&nbsp;</label>
+              <button class="btn btn-primary" id="hist-refresh-btn" onclick="loadHistory()">
+                🔄 Refresh
+              </button>
+            </div>
+          </div>
+
+          <!-- Aggregate per model -->
+          <div class="card" id="hist-aggregate-card" style="display:none;">
+            <div class="card-title">📊 Per-Model Aggregates (all-time)</div>
+            <table class="results-table" id="hist-agg-table">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Runs</th>
+                  <th>Avg Tok/s</th>
+                  <th>Avg TTFT</th>
+                  <th>Avg TPOT</th>
+                  <th>Avg Queue Wait</th>
+                  <th>Avg VRAM End</th>
+                </tr>
+              </thead>
+              <tbody id="hist-agg-tbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Throughput timeline chart -->
+          <div class="chart-container" id="hist-timeline-wrap" style="display:none;">
+            <div class="chart-title">📈 Throughput Timeline (Tokens/sec over time)</div>
+            <canvas id="hist-timeline-chart" height="140"></canvas>
+          </div>
+
+          <!-- Recent runs table -->
+          <div class="card" id="hist-recent-card" style="display:none;">
+            <div class="card-title">🕒 Recent Runs</div>
+            <div style="max-height:340px;overflow-y:auto;">
+              <table class="results-table" id="hist-runs-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Endpoint</th>
+                    <th>Model</th>
+                    <th>Tok/s</th>
+                    <th>TTFT ms</th>
+                    <th>TPOT ms</th>
+                    <th>Tokens Out</th>
+                    <th>Queue ms</th>
+                    <th>State</th>
+                  </tr>
+                </thead>
+                <tbody id="hist-runs-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bench-log" id="hist-empty" style="display:none;">
+            <span style="color:var(--text-muted);">No runs logged yet. Send a chat or run a benchmark, then refresh.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STRESS TEST TAB ── -->
+      <div class="tab-content" id="tab-loadtest">
+        <div class="benchmark-panel">
+          <h2 style="font-size:1rem;color:var(--text-secondary);font-weight:600;">
+            🔥 Stress Test — Concurrent Load + Backpressure
+          </h2>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:12px;">
+            Fires N parallel <code>/generate</code> calls. Watch the SJF queue move
+            <span style="color:var(--green);">NORMAL</span> →
+            <span style="color:var(--amber);">THROTTLING</span> →
+            <span style="color:var(--red);">SHEDDING</span> in real time.
+          </p>
+
+          <div class="bench-controls">
+            <div class="form-group">
+              <label class="form-label">Model</label>
+              <select class="form-select" id="lt-model">
+                <option value="llama3.2:3b">llama3.2:3b</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Concurrency</label>
+              <select class="form-select" id="lt-concurrency" style="min-width:90px;">
+                <option value="4">4</option>
+                <option value="8">8</option>
+                <option value="12" selected>12</option>
+                <option value="20">20</option>
+                <option value="30">30</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Max Tokens / req</label>
+              <select class="form-select" id="lt-maxtok" style="min-width:80px;">
+                <option value="32">32</option>
+                <option value="64" selected>64</option>
+                <option value="128">128</option>
+                <option value="256">256</option>
+              </select>
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <label class="form-label">&nbsp;</label>
+              <button class="btn btn-primary" id="lt-start-btn" onclick="runLoadTest()">
+                ▶ Fire Load Test
+              </button>
+            </div>
+          </div>
+
+          <div class="bench-log" id="lt-log">
+            <span style="color:var(--text-muted);">Ready. Pick a concurrency level and fire.</span>
+          </div>
+
+          <!-- Summary card -->
+          <div class="card" id="lt-summary-card" style="display:none;">
+            <div class="card-title">📋 Test Summary</div>
+            <table class="results-table" id="lt-summary-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody id="lt-summary-tbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Live timeline chart -->
+          <div class="chart-container" id="lt-timeline-wrap" style="display:none;">
+            <div class="chart-title">📉 Queue Timeline (depth + VRAM% over time)</div>
+            <canvas id="lt-timeline-chart" height="160"></canvas>
+          </div>
+
+          <!-- Past load tests -->
+          <div class="card" id="lt-past-card" style="display:none;">
+            <div class="card-title">🗂 Past Load Tests</div>
+            <div style="max-height:240px;overflow-y:auto;">
+              <table class="results-table" id="lt-past-table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Model</th>
+                    <th>N</th>
+                    <th>OK</th>
+                    <th>429</th>
+                    <th>Err</th>
+                    <th>p50</th>
+                    <th>p95</th>
+                    <th>Final</th>
+                  </tr>
+                </thead>
+                <tbody id="lt-past-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ────────── RIGHT SIDEBAR ────────── -->
+    <aside class="sidebar-right">
+
+      <!-- GPU Live Stats -->
+      <div class="card">
+        <div class="card-title">🖥 GPU</div>
+        <div class="gpu-grid">
+          <div class="gpu-metric">
+            <div class="gpu-metric-value" id="gpu-util">—</div>
+            <div class="gpu-metric-label">GPU Util %</div>
+          </div>
+          <div class="gpu-metric">
+            <div class="gpu-metric-value" id="gpu-temp">—</div>
+            <div class="gpu-metric-label">Temp °C</div>
+          </div>
+          <div class="gpu-metric">
+            <div class="gpu-metric-value" id="gpu-vram-used">—</div>
+            <div class="gpu-metric-label">VRAM Used MB</div>
+          </div>
+          <div class="gpu-metric">
+            <div class="gpu-metric-value" id="gpu-power">—</div>
+            <div class="gpu-metric-label">Power W</div>
+          </div>
+        </div>
+
+        <div class="progress-bar-wrap">
+          <div class="progress-label">
+            <span>VRAM</span>
+            <span id="vram-pct-label">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="vram-bar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div class="progress-bar-wrap">
+          <div class="progress-label">
+            <span>GPU Compute</span>
+            <span id="gpu-pct-label">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill amber" id="gpu-util-bar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:8px; font-size:0.68rem; color:var(--text-muted); font-family:'JetBrains Mono',monospace;" id="gpu-name-label">
+          Detecting GPU...
+        </div>
+      </div>
+
+      <!-- GPU Utilization history chart -->
+      <div class="card">
+        <div class="card-title">📉 GPU Util History</div>
+        <canvas id="gpu-chart" height="80"></canvas>
+      </div>
+
+      <!-- VRAM Budget -->
+      <div class="card">
+        <div class="card-title">💾 VRAM Budget (4GB)</div>
+        <div class="stat-row"><span class="stat-label">llama3.2:3b</span><span class="stat-value green">~2.0 GB</span></div>
+        <div class="stat-row"><span class="stat-label">llama3.2:1b</span><span class="stat-value green">~1.3 GB</span></div>
+        <div class="stat-row"><span class="stat-label">phi3:mini</span><span class="stat-value green">~2.3 GB</span></div>
+        <div class="stat-row"><span class="stat-label">qwen2.5:3b</span><span class="stat-value green">~2.0 GB</span></div>
+        <div class="stat-row"><span class="stat-label">gemma2:2b</span><span class="stat-value green">~1.6 GB</span></div>
+        <div class="stat-row"><span class="stat-label">tinyllama</span><span class="stat-value green">~0.7 GB</span></div>
+        <div class="stat-row"><span class="stat-label">OS Overhead</span><span class="stat-value amber">~0.4 GB</span></div>
+      </div>
+
+      <!-- Installed models list -->
+      <div class="card">
+        <div class="card-title">📦 Installed Models</div>
+        <div id="models-list" style="font-size:0.75rem;color:var(--text-muted);">
+          Loading...
+        </div>
+      </div>
+
+      <!-- Queue / Backpressure status -->
+      <div class="card">
+        <div class="card-title">🔀 Queue Status</div>
+        <div class="stat-row">
+          <span class="stat-label">Active</span>
+          <span class="stat-value" id="queue-active">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Capacity</span>
+          <span class="stat-value" id="queue-pct">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">State</span>
+          <span class="stat-value" id="queue-state">—</span>
+        </div>
+      </div>
+
+      <!-- VRAM Simulator -->
+      <div class="card">
+        <div class="card-title">🧮 VRAM Simulator</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:8px;">
+          Memory = P × (Q/8) × (1 + Overhead)
+        </div>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label class="form-label">Params (B)</label>
+          <input type="number" id="sim-params" value="3" min="0.1" step="0.5"
+                 class="form-input" style="width:100%;" />
+        </div>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label class="form-label">Precision (bits)</label>
+          <select id="sim-bits" class="form-select" style="width:100%;">
+            <option value="4">4-bit (Q4/INT4)</option>
+            <option value="8">8-bit (INT8/FP8)</option>
+            <option value="16" selected>16-bit (FP16/BF16)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label class="form-label">Overhead (KV+act)</label>
+          <select id="sim-overhead" class="form-select" style="width:100%;">
+            <option value="0.1">10%</option>
+            <option value="0.2" selected>20% (typical)</option>
+            <option value="0.3">30%</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-bottom:10px;"
+                onclick="runVRAMSim()">Calculate</button>
+        <div id="sim-result" style="font-size:0.75rem;color:var(--text-muted);display:none;">
+          <div class="stat-row">
+            <span class="stat-label">Est. VRAM</span>
+            <span class="stat-value blue" id="sim-vram">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Fits GPU?</span>
+            <span class="stat-value" id="sim-fits">—</span>
+          </div>
+          <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;
+                      font-size:0.65rem;color:var(--text-muted);word-break:break-all;"
+               id="sim-formula"></div>
+        </div>
+      </div>
+
+    </aside>
+  </div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script src="/static/app.js"></script>
+</body>
+</html>

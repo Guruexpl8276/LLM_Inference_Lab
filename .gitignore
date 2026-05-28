@@ -1,0 +1,65 @@
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Virtual envs ─────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ── Environment files (keep .env.example committed) ──────
+.env
+.env.local
+.env.*.local
+
+# ── Persistent research data (do NOT commit user data) ───
+inference_lab.db
+inference_lab.db-journal
+inference_lab.db-wal
+inference_lab.db-shm
+*.sqlite
+*.sqlite3
+
+# ── Ollama models (huge binary blobs) ────────────────────
+ollama_models/
+*.gguf
+*.bin
+
+# ── Caches ───────────────────────────────────────────────
+hf_cache/
+torch_cache/
+pip_cache/
+gradio_temp/
+.cache/
+
+# ── Build / dist ─────────────────────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+
+# ── Editor / OS ──────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Project-specific personal notes ──────────────────────
+.claude/
+*.local.md
+notes/
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+logs/
